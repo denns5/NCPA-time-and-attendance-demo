@@ -1,1 +1,2 @@
 # NCPA-time-and-attendance-demo
+This is a Time & Attendance demo app for NCPA (Northern California Power Agency). Stack: Next.js 14 App Router, Tailwind, shadcn/ui, SQLite with Drizzle ORM. No auth — use a role-selector (Employee/Supervisor/Payroll Admin). Seed data should use the real Lodi Energy Center shift schedule with 12-hour rotating operators. Core modules: timesheets, leave management, shift scheduling, pay rule engine.
