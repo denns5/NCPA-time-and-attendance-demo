@@ -124,5 +124,149 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
+  if (action === "mark_absent") {
+    const { employeeId, date, supervisorId, reason } = body as {
+      employeeId: number;
+      date: string;
+      supervisorId: number;
+      reason: string;
+    };
+
+    // Validate current code is D or N
+    const current = sqlite
+      .prepare("SELECT shift_code FROM schedules WHERE employee_id = ? AND date = ?")
+      .get(employeeId, date) as { shift_code: string } | undefined;
+
+    if (!current || (current.shift_code !== "D" && current.shift_code !== "N")) {
+      return NextResponse.json({ error: "Can only mark D or N shifts as absent" }, { status: 400 });
+    }
+
+    const shiftLabel = current.shift_code === "D" ? "day" : "night";
+
+    sqlite.transaction(() => {
+      sqlite
+        .prepare(
+          `UPDATE schedules SET shift_code = 'X', start_time = NULL, end_time = NULL, is_modified = 1, modified_by = ?, notes = ? WHERE employee_id = ? AND date = ?`
+        )
+        .run(supervisorId, reason, employeeId, date);
+
+      sqlite
+        .prepare(
+          `INSERT INTO notifications (user_id, type, title, message, is_read, created_at, link_to)
+           VALUES (?, 'schedule_change', 'Shift Marked Absent', ?, 0, ?, '/dashboard/schedule')`
+        )
+        .run(employeeId, `Your ${shiftLabel} shift on ${date} has been marked as absent: ${reason}`, now);
+
+      sqlite
+        .prepare(
+          `INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_value, new_value, created_at)
+           VALUES (?, 'shift_marked_absent', 'schedule', ?, ?, ?, ?)`
+        )
+        .run(
+          supervisorId,
+          employeeId,
+          JSON.stringify({ shiftCode: current.shift_code, date }),
+          JSON.stringify({ shiftCode: "X", reason, date }),
+          now
+        );
+    })();
+
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "swap_shift") {
+    const { employeeId, date, supervisorId, newShiftCode } = body as {
+      employeeId: number;
+      date: string;
+      supervisorId: number;
+      newShiftCode: string;
+    };
+
+    if (newShiftCode !== "D" && newShiftCode !== "N") {
+      return NextResponse.json({ error: "newShiftCode must be D or N" }, { status: 400 });
+    }
+
+    const current = sqlite
+      .prepare("SELECT shift_code FROM schedules WHERE employee_id = ? AND date = ?")
+      .get(employeeId, date) as { shift_code: string } | undefined;
+
+    if (!current || (current.shift_code !== "D" && current.shift_code !== "N")) {
+      return NextResponse.json({ error: "Can only swap D or N shifts" }, { status: 400 });
+    }
+
+    if (current.shift_code === newShiftCode) {
+      return NextResponse.json({ error: "Shift is already " + newShiftCode }, { status: 400 });
+    }
+
+    const newTimes = newShiftCode === "D"
+      ? { start: "06:00", end: "18:00" }
+      : { start: "18:00", end: "06:00" };
+
+    const oldLabel = current.shift_code === "D" ? "Day" : "Night";
+    const newLabel = newShiftCode === "D" ? "Day" : "Night";
+
+    sqlite.transaction(() => {
+      sqlite
+        .prepare(
+          `UPDATE schedules SET shift_code = ?, start_time = ?, end_time = ?, is_modified = 1, modified_by = ? WHERE employee_id = ? AND date = ?`
+        )
+        .run(newShiftCode, newTimes.start, newTimes.end, supervisorId, employeeId, date);
+
+      sqlite
+        .prepare(
+          `INSERT INTO notifications (user_id, type, title, message, is_read, created_at, link_to)
+           VALUES (?, 'schedule_change', 'Shift Swapped', ?, 0, ?, '/dashboard/schedule')`
+        )
+        .run(employeeId, `Your shift on ${date} changed from ${oldLabel} to ${newLabel}`, now);
+
+      sqlite
+        .prepare(
+          `INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_value, new_value, created_at)
+           VALUES (?, 'shift_swapped', 'schedule', ?, ?, ?, ?)`
+        )
+        .run(
+          supervisorId,
+          employeeId,
+          JSON.stringify({ shiftCode: current.shift_code, date }),
+          JSON.stringify({ shiftCode: newShiftCode, date }),
+          now
+        );
+    })();
+
+    return NextResponse.json({ success: true });
+  }
+
+  if (action === "add_note") {
+    const { employeeId, date, supervisorId, note } = body as {
+      employeeId: number;
+      date: string;
+      supervisorId: number;
+      note: string;
+    };
+
+    sqlite.transaction(() => {
+      sqlite
+        .prepare(
+          `UPDATE schedules SET notes = ?, is_modified = 1, modified_by = ? WHERE employee_id = ? AND date = ?`
+        )
+        .run(note, supervisorId, employeeId, date);
+
+      sqlite
+        .prepare(
+          `INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_value, new_value, created_at)
+           VALUES (?, 'note_added', 'schedule', ?, ?, ?, ?)`
+        )
+        .run(
+          supervisorId,
+          employeeId,
+          JSON.stringify({ date }),
+          JSON.stringify({ note, date }),
+          now
+        );
+    })();
+
+    return NextResponse.json({ success: true });
+  }
+
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }

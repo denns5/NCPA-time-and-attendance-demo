@@ -518,7 +518,8 @@ export function TimesheetGrid({
               <span className="font-bold text-indigo-600">N</span>=Night{" "}
               <span className="font-bold text-slate-400">R</span>=Relief{" "}
               <span className="font-bold text-emerald-600">C</span>=Coverage{" "}
-              <span className="font-bold text-red-500">H</span>=Holiday
+              <span className="font-bold text-red-500">H</span>=Holiday{" "}
+              <span className="font-bold text-orange-500">X</span>=Open
             </span>
           </>
         )}

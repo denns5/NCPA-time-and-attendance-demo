@@ -199,7 +199,7 @@ function applyOTCalculation(
   const dayHours: DayHours[] = dates.map((date) => {
     let total = 0;
     for (const row of rows) {
-      if (row.payCode === "REG" || row.payCode === "HOL") {
+      if (row.payCode === "REG") {
         total += row.hours[date] || 0;
       }
     }

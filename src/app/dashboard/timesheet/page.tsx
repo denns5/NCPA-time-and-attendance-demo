@@ -134,7 +134,7 @@ export default function TimesheetPage() {
       let total = 0;
       for (const row of currentRows) {
         if (row.payCode === "OT_1_5" || row.payCode === "OT_2_0") continue;
-        if (row.payCode === "REG" || row.payCode === "HOL") {
+        if (row.payCode === "REG") {
           total += row.hours[date] || 0;
         }
       }

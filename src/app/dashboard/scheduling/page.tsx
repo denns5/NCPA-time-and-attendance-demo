@@ -42,21 +42,32 @@ const SHIFT_COLORS: Record<string, string> = {
   X: "bg-red-50 text-red-600 border border-red-400 font-bold",
 };
 
-type CoverageForm = {
+const CLICKABLE_CODES = new Set(["D", "N", "C", "X"]);
+
+type EditAction = "assign_coverage" | "mark_absent" | "swap_shift" | "add_note" | null;
+
+type EditState = {
   employeeId: number;
+  employeeName: string;
   date: string;
+  currentCode: string;
+  action: EditAction;
+  // Form fields
   reliefId: number;
   startTime: string;
   endTime: string;
+  reason: string;
+  newShiftCode: string;
+  note: string;
 };
 
 export default function SchedulingPage() {
   const { employeeId } = useRole();
   const [data, setData] = useState<SchedulingData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [coverageForm, setCoverageForm] = useState<CoverageForm | null>(null);
-  const [assigning, setAssigning] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -76,41 +87,80 @@ export default function SchedulingPage() {
   }, [fetchData]);
 
   const handleCellClick = (empId: number, date: string, code: string) => {
-    if (code !== "X") return;
-    setCoverageForm({
+    if (!CLICKABLE_CODES.has(code)) return;
+    const member = data?.team.find((t) => t.id === empId);
+    const defaultTimes = code === "N" ? { start: "18:00", end: "06:00" } : { start: "06:00", end: "18:00" };
+    setEditState({
       employeeId: empId,
+      employeeName: member?.name || "",
       date,
+      currentCode: code,
+      action: null,
       reliefId: data?.reliefOperators[0]?.id || 0,
-      startTime: "06:00",
-      endTime: "18:00",
+      startTime: defaultTimes.start,
+      endTime: defaultTimes.end,
+      reason: "",
+      newShiftCode: code === "D" ? "N" : "D",
+      note: "",
     });
     setMessage(null);
   };
 
-  const handleAssign = async () => {
-    if (!coverageForm) return;
-    setAssigning(true);
+  const handleSubmit = async () => {
+    if (!editState || !editState.action) return;
+    setSubmitting(true);
     try {
+      const payload: Record<string, unknown> = {
+        action: editState.action,
+        employeeId: editState.employeeId,
+        date: editState.date,
+        supervisorId: employeeId,
+      };
+
+      if (editState.action === "assign_coverage") {
+        payload.reliefId = editState.reliefId;
+        payload.startTime = editState.startTime;
+        payload.endTime = editState.endTime;
+      } else if (editState.action === "mark_absent") {
+        payload.reason = editState.reason;
+      } else if (editState.action === "swap_shift") {
+        payload.newShiftCode = editState.newShiftCode;
+      } else if (editState.action === "add_note") {
+        payload.note = editState.note;
+      }
+
       const res = await fetch("/api/scheduling", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "assign_coverage",
-          ...coverageForm,
-          supervisorId: employeeId,
-        }),
+        body: JSON.stringify(payload),
       });
       const result = await res.json();
       if (result.success) {
-        setMessage("Coverage assigned successfully.");
-        setCoverageForm(null);
+        const labels: Record<string, string> = {
+          assign_coverage: "Coverage assigned",
+          mark_absent: "Shift marked absent",
+          swap_shift: "Shift swapped",
+          add_note: "Note added",
+        };
+        setMessage({ text: labels[editState.action] + " successfully.", type: "success" });
+        setEditState(null);
         fetchData();
+      } else {
+        setMessage({ text: result.error || "Action failed.", type: "error" });
       }
     } catch {
-      setMessage("Failed to assign coverage.");
+      setMessage({ text: "Request failed.", type: "error" });
     } finally {
-      setAssigning(false);
+      setSubmitting(false);
     }
+  };
+
+  const isConfirmDisabled = () => {
+    if (!editState?.action) return true;
+    if (editState.action === "mark_absent" && !editState.reason.trim()) return true;
+    if (editState.action === "assign_coverage" && !editState.reliefId) return true;
+    if (editState.action === "add_note" && !editState.note.trim()) return true;
+    return false;
   };
 
   if (loading) {
@@ -137,10 +187,8 @@ export default function SchedulingPage() {
     scheduleMap.set(`${entry.employeeId}-${entry.date}`, entry);
   }
 
-  // Count coverage gaps
-  const gaps = data.schedules.filter(
-    (s) => s.shiftCode === "X" && s.date >= "2024-07-15"
-  );
+  // Count coverage gaps — all X codes, no date filter
+  const gaps = data.schedules.filter((s) => s.shiftCode === "X");
 
   // Find relief availability for a date
   const getAvailableRelief = (date: string) => {
@@ -148,6 +196,27 @@ export default function SchedulingPage() {
       const entry = scheduleMap.get(`${r.id}-${date}`);
       return !entry || entry.shiftCode === "R" || entry.shiftCode === "OFF";
     });
+  };
+
+  // Actions available per shift code
+  const getActions = (code: string): Array<{ key: EditAction; label: string }> => {
+    if (code === "D" || code === "N") {
+      return [
+        { key: "mark_absent", label: "Mark Absent" },
+        { key: "swap_shift", label: `Swap to ${code === "D" ? "Night" : "Day"}` },
+        { key: "add_note", label: "Add Note" },
+      ];
+    }
+    if (code === "X") {
+      return [
+        { key: "assign_coverage", label: "Assign Coverage" },
+        { key: "add_note", label: "Add Note" },
+      ];
+    }
+    if (code === "C") {
+      return [{ key: "add_note", label: "Add Note" }];
+    }
+    return [];
   };
 
   return (
@@ -160,9 +229,13 @@ export default function SchedulingPage() {
       </div>
 
       {message && (
-        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <div className={`flex items-center gap-2 p-3 border rounded-lg text-sm ${
+          message.type === "success"
+            ? "bg-green-50 border-green-200 text-green-800"
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
           <CheckCircle className="h-4 w-4" />
-          {message}
+          {message.text}
         </div>
       )}
 
@@ -172,7 +245,7 @@ export default function SchedulingPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-600" />
-              {gaps.length} Open Coverage Need{gaps.length !== 1 ? "s" : ""} (from Jul 15)
+              {gaps.length} Open Coverage Need{gaps.length !== 1 ? "s" : ""}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -190,64 +263,158 @@ export default function SchedulingPage() {
         </Card>
       )}
 
-      {/* Coverage Assignment Form */}
-      {coverageForm && (
+      {/* Unified Edit Card */}
+      {editState && (
         <Card className="border-amber-200">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Assign Coverage</CardTitle>
+            <CardTitle className="text-sm">
+              Edit Shift — {editState.employeeName} on{" "}
+              {new Date(editState.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              {" "}
+              <Badge className={`ml-1 ${SHIFT_COLORS[editState.currentCode] || ""}`}>
+                {editState.currentCode}
+              </Badge>
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Employee</label>
-                <span className="text-sm font-medium">
-                  {data.team.find((t) => t.id === coverageForm.employeeId)?.name}
-                </span>
+          <CardContent className="space-y-3">
+            {/* Action buttons */}
+            {!editState.action && (
+              <div className="flex flex-wrap gap-2">
+                {getActions(editState.currentCode).map((a) => (
+                  <Button
+                    key={a.key}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditState({ ...editState, action: a.key })}
+                  >
+                    {a.label}
+                  </Button>
+                ))}
+                <Button size="sm" variant="ghost" onClick={() => setEditState(null)}>
+                  Cancel
+                </Button>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Date</label>
-                <span className="text-sm font-medium">{coverageForm.date}</span>
+            )}
+
+            {/* Mark Absent form */}
+            {editState.action === "mark_absent" && (
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="text-xs text-muted-foreground block mb-1">Reason (required)</label>
+                  <input
+                    type="text"
+                    className="text-sm border rounded px-2 py-1 w-full"
+                    placeholder="e.g. Sick call, personal day"
+                    value={editState.reason}
+                    onChange={(e) => setEditState({ ...editState, reason: e.target.value })}
+                  />
+                </div>
+                <Button size="sm" onClick={handleSubmit} disabled={submitting || isConfirmDisabled()}>
+                  {submitting ? "Saving..." : "Confirm"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditState({ ...editState, action: null })}>
+                  Back
+                </Button>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Relief Operator</label>
-                <select
-                  className="text-sm border rounded px-2 py-1"
-                  value={coverageForm.reliefId}
-                  onChange={(e) => setCoverageForm({ ...coverageForm, reliefId: Number(e.target.value) })}
-                >
-                  {getAvailableRelief(coverageForm.date).map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                  {getAvailableRelief(coverageForm.date).length === 0 && (
-                    <option value={0} disabled>No relief available</option>
-                  )}
-                </select>
+            )}
+
+            {/* Assign Coverage form */}
+            {editState.action === "assign_coverage" && (
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Relief Operator</label>
+                  <select
+                    className="text-sm border rounded px-2 py-1"
+                    value={editState.reliefId}
+                    onChange={(e) => setEditState({ ...editState, reliefId: Number(e.target.value) })}
+                  >
+                    {getAvailableRelief(editState.date).map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                    {getAvailableRelief(editState.date).length === 0 && (
+                      <option value={0} disabled>No relief available</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Start</label>
+                  <input
+                    type="time"
+                    className="text-sm border rounded px-2 py-1"
+                    value={editState.startTime}
+                    onChange={(e) => setEditState({ ...editState, startTime: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">End</label>
+                  <input
+                    type="time"
+                    className="text-sm border rounded px-2 py-1"
+                    value={editState.endTime}
+                    onChange={(e) => setEditState({ ...editState, endTime: e.target.value })}
+                  />
+                </div>
+                <Button size="sm" onClick={handleSubmit} disabled={submitting || isConfirmDisabled()}>
+                  {submitting ? "Assigning..." : "Assign"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditState({ ...editState, action: null })}>
+                  Back
+                </Button>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Start</label>
-                <input
-                  type="time"
-                  className="text-sm border rounded px-2 py-1"
-                  value={coverageForm.startTime}
-                  onChange={(e) => setCoverageForm({ ...coverageForm, startTime: e.target.value })}
-                />
+            )}
+
+            {/* Swap Shift form */}
+            {editState.action === "swap_shift" && (
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">New Shift</label>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant={editState.newShiftCode === "D" ? "default" : "outline"}
+                      onClick={() => setEditState({ ...editState, newShiftCode: "D" })}
+                    >
+                      Day
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={editState.newShiftCode === "N" ? "default" : "outline"}
+                      onClick={() => setEditState({ ...editState, newShiftCode: "N" })}
+                    >
+                      Night
+                    </Button>
+                  </div>
+                </div>
+                <Button size="sm" onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? "Swapping..." : "Confirm"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditState({ ...editState, action: null })}>
+                  Back
+                </Button>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">End</label>
-                <input
-                  type="time"
-                  className="text-sm border rounded px-2 py-1"
-                  value={coverageForm.endTime}
-                  onChange={(e) => setCoverageForm({ ...coverageForm, endTime: e.target.value })}
-                />
+            )}
+
+            {/* Add Note form */}
+            {editState.action === "add_note" && (
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="text-xs text-muted-foreground block mb-1">Note</label>
+                  <textarea
+                    className="text-sm border rounded px-2 py-1 w-full"
+                    rows={2}
+                    placeholder="Add a note for this shift..."
+                    value={editState.note}
+                    onChange={(e) => setEditState({ ...editState, note: e.target.value })}
+                  />
+                </div>
+                <Button size="sm" onClick={handleSubmit} disabled={submitting || isConfirmDisabled()}>
+                  {submitting ? "Saving..." : "Save Note"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditState({ ...editState, action: null })}>
+                  Back
+                </Button>
               </div>
-              <Button size="sm" onClick={handleAssign} disabled={assigning || !coverageForm.reliefId}>
-                {assigning ? "Assigning..." : "Assign"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setCoverageForm(null)}>
-                Cancel
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -256,7 +423,7 @@ export default function SchedulingPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">July 2024 — Team Schedule</CardTitle>
-          <p className="text-xs text-muted-foreground">Click an X cell to assign coverage. Scroll right to see all dates.</p>
+          <p className="text-xs text-muted-foreground">Click any shift cell to edit. R, OFF, and H cells are read-only.</p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -294,18 +461,29 @@ export default function SchedulingPage() {
                       const entry = scheduleMap.get(`${member.id}-${d}`);
                       const code = entry?.shiftCode || "";
                       const isToday = d === "2024-07-15";
-                      const isClickable = code === "X";
+                      const isClickable = CLICKABLE_CODES.has(code);
+                      const isSelected =
+                        editState?.employeeId === member.id && editState?.date === d;
 
                       return (
                         <td
                           key={d}
-                          className={`px-0.5 py-1 text-center ${isToday ? "bg-primary/5" : ""} ${isClickable ? "cursor-pointer" : ""}`}
+                          className={`px-0.5 py-1 text-center ${isToday ? "bg-primary/5" : ""} ${
+                            isClickable ? "cursor-pointer hover:bg-muted/50" : ""
+                          } ${isSelected ? "bg-amber-50" : ""}`}
                           onClick={() => isClickable && handleCellClick(member.id, d, code)}
                           title={entry?.notes || undefined}
                         >
                           {code && (
-                            <span className={`inline-block px-1 py-0.5 rounded text-[10px] font-medium leading-none ${SHIFT_COLORS[code] || "bg-gray-100"}`}>
-                              {code}
+                            <span className="relative inline-block">
+                              <span
+                                className={`inline-block px-1 py-0.5 rounded text-[10px] font-medium leading-none ${SHIFT_COLORS[code] || "bg-gray-100"}`}
+                              >
+                                {code}
+                              </span>
+                              {entry?.isModified && (
+                                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                              )}
                             </span>
                           )}
                         </td>
@@ -329,6 +507,13 @@ export default function SchedulingPage() {
             </span>
           </div>
         ))}
+        <div className="flex items-center gap-1">
+          <span className="relative inline-block px-1.5 py-0.5 rounded font-medium bg-gray-100">
+            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-orange-500 rounded-full" />
+            &nbsp;&nbsp;
+          </span>
+          <span className="text-muted-foreground">Modified</span>
+        </div>
       </div>
     </div>
   );

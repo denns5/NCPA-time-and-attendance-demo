@@ -221,17 +221,17 @@ console.log(`Seeded ${employeeIds.length} employees.`);
 // Groups rotate: A-crew (days 1-3 on days, then nights, etc.), B-crew, relief covers gaps
 const scheduleData: Record<string, string[]> = {
   // Employee name -> array of 31 shift codes for July 1-31
-  "Kyle M":    ["D","D","D","H","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R"],
+  "Kyle M":    ["D","D","D","H","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","X","D","D","R","R"],
   "Aaron S":   ["D","D","D","H","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R"],
-  "Dennis S":  ["N","N","N","H","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R"],
+  "Dennis S":  ["N","N","N","H","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","X","D","D","R","R","R","N","N","N","R","R"],
   "Jerry P":   ["N","N","N","H","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R"],
-  "Jeff H":    ["R","R","D","H","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R"],
+  "Jeff H":    ["R","R","D","H","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","X","D","D","R"],
   "Ryan Y":    ["R","R","D","H","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R"],
   "Jeff P":    ["R","R","R","H","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D"],
   "Daniel C":  ["R","R","R","H","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N"],
   "Steve A":   ["R","R","R","H","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N"],
   "Mark D":    ["D","D","D","H","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R"],
-  "Candace S": ["R","R","R","H","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N"],
+  "Candace S": ["R","R","R","H","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","X","N"],
   "Trevor M":  ["N","N","N","H","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R","R","D","D","D","R","R","R","N","N","N","R","R"],
   "Ryan D":    ["R","R","C","H","R","R","R","R","R","R","C","C","R","R","C","C","C","C","R","R","R","R","R","C","C","C","R","R","R","R","R"],
   "Jim M":     ["R","C","R","H","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R","R"],
@@ -257,6 +257,14 @@ const employeeNameToId: Record<string, number> = {};
 employeeData.forEach((emp, i) => {
   employeeNameToId[emp.name] = employeeIds[i];
 });
+
+// X code notes — unfilled coverage needs
+const xCodeNotes: Record<string, Record<number, string>> = {
+  "Kyle M": { 27: "Sick call — needs day shift coverage" },
+  "Dennis S": { 21: "Personal day — needs day shift coverage" },
+  "Jeff H": { 28: "Vacation day — needs day shift coverage" },
+  "Candace S": { 30: "Sick call — needs night shift coverage" },
+};
 
 // Coverage notes
 const coverageNotes: Record<string, Record<number, string>> = {
@@ -285,9 +293,11 @@ for (const [name, codes] of Object.entries(scheduleData)) {
     const dateStr = `2024-07-${String(day + 1).padStart(2, "0")}`;
     const times = shiftTimes(code);
 
-    // Check for coverage modifications
-    const isModified = (coverageNotes[name] && coverageNotes[name][day + 1]) ? true : false;
-    const notes = coverageNotes[name]?.[day + 1] || null;
+    // Check for coverage modifications or X code notes
+    const hasCoverageNote = coverageNotes[name]?.[day + 1];
+    const hasXNote = xCodeNotes[name]?.[day + 1];
+    const isModified = hasCoverageNote ? true : false;
+    const notes = hasCoverageNote || hasXNote || null;
 
     // For Ryan D night coverage
     let startTime = times.start;
@@ -530,6 +540,61 @@ for (const ts of submittedTimesheets) {
         } else {
           insertTimeEntry.run(tsId, dateStr, "REG", 8, "ADMIN", "1000", null, 1);
         }
+        timeEntryCount++;
+      }
+    }
+  }
+}
+
+// Current pay period draft timesheets (7/15 – 7/28)
+// These make the dashboard cards show real data instead of "No Timesheet"
+const currentPeriodDrafts = [
+  { empIndex: 0 },  // Kyle M — employee dashboard persona
+  { empIndex: 1 },  // Aaron S
+  { empIndex: 2 },  // Dennis S
+  { empIndex: 4 },  // Jeff H
+  { empIndex: 9 },  // Mark D (supervisor)
+  { empIndex: 15 }, // Michael Torres — shows in payroll admin view
+];
+
+for (const ts of currentPeriodDrafts) {
+  const empId = employeeIds[ts.empIndex];
+  const isShiftWorker = employeeData[ts.empIndex].scheduleType === "12_hour_rotating";
+  const empName = employeeData[ts.empIndex].name;
+
+  const result = insertTimesheet.run(empId, "2024-07-15", "2024-07-28", "draft", null, null, null, null);
+  const tsId = Number(result.lastInsertRowid);
+  timesheetCount++;
+
+  // Auto-populate time entries from schedule data
+  if (isShiftWorker && scheduleData[empName]) {
+    const codes = scheduleData[empName];
+    for (let day = 15; day <= 28; day++) {
+      const code = codes[day - 1]; // 0-indexed
+      const dateStr = `2024-07-${String(day).padStart(2, "0")}`;
+      if (code === "D" || code === "N") {
+        insertTimeEntry.run(tsId, dateStr, "REG", 12, "LEC-OPS", "5100", null, 1);
+        timeEntryCount++;
+      }
+    }
+    // Add some OT for realism (holdover shifts)
+    if (empName === "Aaron S") {
+      insertTimeEntry.run(tsId, "2024-07-21", "OT_1_5", 2, "LEC-OPS", "5100", "Holdover — late relief", 0);
+      timeEntryCount++;
+    }
+    if (empName === "Dennis S") {
+      insertTimeEntry.run(tsId, "2024-07-22", "OT_1_5", 4, "LEC-OPS", "5100", "Callback coverage", 0);
+      timeEntryCount++;
+    }
+  } else {
+    // Non-union: populate from weekday pattern
+    for (let day = 15; day <= 28; day++) {
+      const date = new Date(2024, 6, day);
+      const dayOfWeek = date.getDay();
+      const dateStr = `2024-07-${String(day).padStart(2, "0")}`;
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        const hours = employeeData[ts.empIndex].scheduleType === "9_80" ? 9 : 8;
+        insertTimeEntry.run(tsId, dateStr, "REG", hours, "ADMIN", "1000", null, 1);
         timeEntryCount++;
       }
     }
@@ -820,6 +885,7 @@ const notificationData = [
   { userId: employeeNameToId["Mark D"], type: "leave_request", title: "Leave Request", message: "Kyle M requested vacation 7/22-7/25 (48 hours)", isRead: false, createdAt: "2024-07-10T09:00:00", linkTo: "/dashboard/approvals" },
   { userId: employeeNameToId["Mark D"], type: "leave_request", title: "Leave Request", message: "Steve A requested vacation 8/5-8/9 (60 hours)", isRead: true, createdAt: "2024-07-08T11:00:00", linkTo: "/dashboard/approvals" },
   { userId: employeeNameToId["Mark D"], type: "overtime_alert", title: "OT Alert", message: "Ryan D approaching OT threshold this period (36 hrs coverage)", isRead: false, createdAt: "2024-07-14T08:00:00", linkTo: "/dashboard/team" },
+  { userId: employeeNameToId["Mark D"], type: "coverage_needed", title: "Open Coverage Needs", message: "4 open shifts need coverage: Kyle M 7/27, Dennis S 7/21, Jeff H 7/28, Candace S 7/30", isRead: false, createdAt: "2024-07-18T07:00:00", linkTo: "/dashboard/scheduling" },
 
   // Employee notifications
   { userId: employeeNameToId["Kyle M"], type: "schedule_change", title: "Schedule Update", message: "Your schedule for July has been published", isRead: true, createdAt: "2024-06-25T10:00:00", linkTo: "/dashboard/schedule" },
