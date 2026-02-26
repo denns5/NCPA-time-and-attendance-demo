@@ -60,7 +60,7 @@ Role context: `src/context/role-context.tsx` — stores role + employeeId, acces
 - **Float:** 2 days/year (24hr for 12-hr workers / 16hr for 8-hr workers), use-it-or-lose-it
 - **LBA (Leave Bank Accrual):** IBEW only — compensates for schedule hours >80 in a pay period, auto-applied when <80, cap 120hrs
 - **Holiday Bank:** IBEW only — credited when holiday falls on off day, usable as PTO
-- **Comp Time:** Accrued from specific OT situations, cap 40hrs
+- **Comp Time:** Accrued from specific OT situations, cap 147hrs
 
 ### Coverage & Staffing
 - Minimum 2 operators per shift at Lodi Energy Center

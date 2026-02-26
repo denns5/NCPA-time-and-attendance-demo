@@ -426,7 +426,7 @@ for (let i = 0; i < employeeIds.length; i++) {
 
   // Comp time — some employees
   if (i % 3 === 0) {
-    insertLeaveBalance.run(empId, "comp", isShiftWorker ? 12 : 8, 0, 40, "2024-06-30");
+    insertLeaveBalance.run(empId, "comp", isShiftWorker ? 12 : 8, 0, 147, "2024-06-30");
     leaveBalanceCount++;
   }
 }
