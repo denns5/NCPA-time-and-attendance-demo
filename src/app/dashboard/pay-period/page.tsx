@@ -67,8 +67,9 @@ export default function PayPeriodPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/pay-period");
+      if (!res.ok) return;
       const json = await res.json();
-      setPeriods(json.periods);
+      setPeriods(json.periods || []);
     } catch {
       console.error("Failed to load pay period data");
     } finally {

@@ -175,7 +175,7 @@ export default function AuditLogPage() {
                         </Badge>
                       </td>
                       <td className="py-2 px-3 text-muted-foreground">{entry.entityType}</td>
-                      <td className="py-2 px-3 text-muted-foreground">#{entry.entityId}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{entry.entityId != null ? `#${entry.entityId}` : "—"}</td>
                     </tr>
                     {expandedId === entry.id && (
                       <tr className="border-b bg-muted/20">

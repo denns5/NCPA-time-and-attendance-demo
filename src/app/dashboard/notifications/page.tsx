@@ -77,9 +77,10 @@ export default function NotificationsPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/notifications?userId=${employeeId}`);
+      if (!res.ok) return;
       const json = await res.json();
-      setItems(json.notifications);
-      setUnreadCount(json.unreadCount);
+      setItems(json.notifications || []);
+      setUnreadCount(json.unreadCount || 0);
     } catch {
       console.error("Failed to load notifications");
     } finally {
@@ -92,25 +93,33 @@ export default function NotificationsPage() {
   }, [fetchData]);
 
   const markRead = async (id: number) => {
-    await fetch("/api/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_read", notificationId: id }),
-    });
-    setItems((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-    setUnreadCount((c) => Math.max(0, c - 1));
+    try {
+      await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_read", notificationId: id }),
+      });
+      setItems((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      console.error("Failed to mark notification as read");
+    }
   };
 
   const markAllRead = async () => {
-    await fetch("/api/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_all_read", userId: employeeId }),
-    });
-    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    setUnreadCount(0);
+    try {
+      await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_all_read", userId: employeeId }),
+      });
+      setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch {
+      console.error("Failed to mark notifications as read");
+    }
   };
 
   if (loading) {

@@ -62,71 +62,37 @@ export default function ApprovalsPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleApproveTimesheet = async (timesheetId: number) => {
-    const res = await fetch("/api/approvals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "approve_timesheet",
-        timesheetId,
-        supervisorId: employeeId,
-      }),
-    });
-    if ((await res.json()).success) {
-      setActionMessage("Timesheet approved.");
-      fetchData();
+  const postAction = async (body: Record<string, unknown>, successMsg: string) => {
+    try {
+      setActionMessage(null);
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setActionMessage(successMsg);
+        fetchData();
+      } else {
+        setActionMessage(result.error || "Action failed.");
+      }
+    } catch {
+      setActionMessage("Network error. Please try again.");
     }
   };
 
-  const handleRejectTimesheet = async (timesheetId: number, notes: string) => {
-    const res = await fetch("/api/approvals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "reject_timesheet",
-        timesheetId,
-        supervisorId: employeeId,
-        notes,
-      }),
-    });
-    if ((await res.json()).success) {
-      setActionMessage("Timesheet rejected.");
-      fetchData();
-    }
-  };
+  const handleApproveTimesheet = (timesheetId: number) =>
+    postAction({ action: "approve_timesheet", timesheetId, supervisorId: employeeId }, "Timesheet approved.");
 
-  const handleApproveLeave = async (requestId: number) => {
-    const res = await fetch("/api/approvals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "approve_leave",
-        requestId,
-        supervisorId: employeeId,
-      }),
-    });
-    if ((await res.json()).success) {
-      setActionMessage("Leave request approved.");
-      fetchData();
-    }
-  };
+  const handleRejectTimesheet = (timesheetId: number, notes: string) =>
+    postAction({ action: "reject_timesheet", timesheetId, supervisorId: employeeId, notes }, "Timesheet rejected.");
 
-  const handleRejectLeave = async (requestId: number, notes: string) => {
-    const res = await fetch("/api/approvals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "reject_leave",
-        requestId,
-        supervisorId: employeeId,
-        notes,
-      }),
-    });
-    if ((await res.json()).success) {
-      setActionMessage("Leave request rejected.");
-      fetchData();
-    }
-  };
+  const handleApproveLeave = (requestId: number) =>
+    postAction({ action: "approve_leave", requestId, supervisorId: employeeId }, "Leave request approved.");
+
+  const handleRejectLeave = (requestId: number, notes: string) =>
+    postAction({ action: "reject_leave", requestId, supervisorId: employeeId, notes }, "Leave request rejected.");
 
   if (loading) {
     return (

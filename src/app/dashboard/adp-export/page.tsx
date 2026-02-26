@@ -55,8 +55,8 @@ export default function ADPExportPage() {
         const res = await fetch(`/api/adp-export?${params}`);
         const json: ExportData = await res.json();
         setData(json);
-        if (!selectedPP && json.payPeriods.length > 0) {
-          const defaultPP = json.payPeriods[2]; // Jul 1-14
+        if (!selectedPP && json.payPeriods?.length > 0) {
+          const defaultPP = json.payPeriods[Math.min(2, json.payPeriods.length - 1)];
           setSelectedPP({ start: defaultPP.start, end: defaultPP.end });
         }
       } catch {

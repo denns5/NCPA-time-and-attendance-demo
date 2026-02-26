@@ -43,6 +43,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/reports?type=${type}`);
+      if (!res.ok) return;
       const json = await res.json();
       setData(json);
     } catch {

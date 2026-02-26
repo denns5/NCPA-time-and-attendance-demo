@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const teamIds = teamMembers.map((e) => e.id);
   if (teamIds.length === 0) {
-    return NextResponse.json({ team: [], schedules: [] });
+    return NextResponse.json({ team: [], schedules: [], month: "2024-07", reliefOperators: [] });
   }
 
   // Get all July 2024 schedules for team
