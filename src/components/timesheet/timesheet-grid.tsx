@@ -189,7 +189,7 @@ export function TimesheetGrid({
                       "text-center px-1 py-2 font-medium text-xs w-16 min-w-[60px]",
                       i === 6 && "border-r",
                       isWeekend && !isShiftWorker && "bg-muted/80",
-                      isHoliday && "bg-amber-50"
+                      isHoliday && "bg-amber-100"
                     )}
                   >
                     <div className={cn(isWeekend && !isShiftWorker && "text-muted-foreground")}>
@@ -241,7 +241,7 @@ export function TimesheetGrid({
                   key={row.payCode}
                   className={cn(
                     "border-t group",
-                    isOTRow && "bg-orange-50/50"
+                    isOTRow && "bg-orange-100/60"
                   )}
                 >
                   {/* Row label */}
@@ -337,10 +337,10 @@ export function TimesheetGrid({
                         className={cn(
                           "text-center px-0.5 py-1 relative",
                           colIdx === 6 && "border-r",
-                          isAuto && !isOTRow && "bg-blue-50/60",
+                          isAuto && !isOTRow && "bg-blue-100 border-l-2 border-l-blue-400",
                           isOff && !isShiftWorker && "bg-muted/40",
-                          isHoliday && "bg-amber-50/60",
-                          isOTRow && value > 0 && "bg-orange-50"
+                          isHoliday && "bg-amber-100 border-l-2 border-l-amber-400",
+                          isOTRow && value > 0 && "bg-orange-100 border-l-2 border-l-orange-400"
                         )}
                       >
                         {isOTRow || isReadOnly ? (
@@ -374,7 +374,7 @@ export function TimesheetGrid({
                               className={cn(
                                 "w-full h-7 text-center text-xs tabular-nums border-0 bg-transparent focus:bg-white focus:ring-1 focus:ring-primary/30 rounded",
                                 value === 0 && "text-muted-foreground/30",
-                                isAuto && "text-blue-800"
+                                isAuto && "text-blue-700 font-semibold"
                               )}
                               placeholder=""
                             />
@@ -500,15 +500,15 @@ export function TimesheetGrid({
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mt-3 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded bg-blue-50 border border-blue-200" />
+          <span className="inline-block w-3 h-3 rounded bg-blue-100 border-l-2 border-l-blue-400 border border-blue-200" />
           Auto-populated from schedule
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded bg-orange-50 border border-orange-200" />
+          <span className="inline-block w-3 h-3 rounded bg-orange-100 border-l-2 border-l-orange-400 border border-orange-200" />
           Auto-calculated OT
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded bg-amber-50 border border-amber-200" />
+          <span className="inline-block w-3 h-3 rounded bg-amber-100 border-l-2 border-l-amber-400 border border-amber-200" />
           Holiday
         </span>
         {isShiftWorker && (
