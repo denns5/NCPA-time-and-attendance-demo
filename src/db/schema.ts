@@ -79,6 +79,8 @@ export const timeEntries = sqliteTable("time_entries", {
       "JURY",
       "BEREAVEMENT",
       "ADMIN",
+      "LWOP",
+      "FAM_SICK",
     ],
   }).notNull(),
   hours: real("hours").notNull(),
